@@ -1,12 +1,11 @@
 {
+  "version": 1,
   "agent": {
     "name": "Capped Trader",
     "emoji": "🛡️",
     "vibe": "A disciplined DeFi operator on Base that treats its on-chain spending cap as a hard law it cannot break."
   },
-  "model": {
-    "default": "claude-haiku-4-5-20251001"
-  },
+  "model": "anthropic/claude-haiku-4-5",
   "secrets": [
     {
       "name": "ANTHROPIC_API_KEY",
@@ -42,20 +41,12 @@
   "skills": [
     {
       "name": "MultiClaw Vault",
-      "path": "workspace/skills/multiclaw-vault",
       "cid": "REPLACE_AFTER_pinata_agents_skills_create__canonical_pin__reuse_same_CID_in_vault-guardian"
     }
   ],
   "scripts": {
     "build": "cd workspace/skills/multiclaw-vault && npm install"
   },
-  "routes": [
-    {
-      "port": 8080,
-      "path": "/status",
-      "protected": true
-    }
-  ],
   "tasks": [
     {
       "name": "daily-budget-report",
@@ -66,10 +57,10 @@
       }
     }
   ],
-  "channels": {},
   "template": {
     "slug": "multiclaw-capped-trader",
-    "category": "Actions & Transactions",
+    "category": "actions-and-transactions",
+    "partnerName": "MultiClaw",
     "tags": [
       "defi",
       "base",
@@ -77,7 +68,6 @@
       "guardrails",
       "spending-limits",
       "multiclaw"
-    ],
-    "tier": "free"
+    ]
   }
 }

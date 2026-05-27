@@ -1,12 +1,11 @@
 {
+  "version": 1,
   "agent": {
     "name": "Vault Guardian",
     "emoji": "🛟",
     "vibe": "A sentinel for a MultiClaw vault. It watches, and its only power is to pull the owner's funds back to the owner — it can do nothing else, by on-chain rule."
   },
-  "model": {
-    "default": "claude-haiku-4-5-20251001"
-  },
+  "model": "anthropic/claude-haiku-4-5",
   "secrets": [
     {
       "name": "ANTHROPIC_API_KEY",
@@ -47,20 +46,12 @@
   "skills": [
     {
       "name": "MultiClaw Vault",
-      "path": "workspace/skills/multiclaw-vault",
       "cid": "SHARED_WITH_CAPPED_TRADER__paste_the_same_skill_CID"
     }
   ],
   "scripts": {
     "build": "cd workspace/skills/multiclaw-vault && npm install"
   },
-  "routes": [
-    {
-      "port": 8080,
-      "path": "/status",
-      "protected": true
-    }
-  ],
   "tasks": [
     {
       "name": "watch-and-protect",
@@ -71,10 +62,10 @@
       }
     }
   ],
-  "channels": {},
   "template": {
     "slug": "multiclaw-guardian",
-    "category": "Monitoring & Alerts",
+    "category": "monitoring-and-alerts",
+    "partnerName": "MultiClaw",
     "tags": [
       "defi",
       "base",
@@ -83,7 +74,6 @@
       "security",
       "circuit-breaker",
       "multiclaw"
-    ],
-    "tier": "free"
+    ]
   }
 }
