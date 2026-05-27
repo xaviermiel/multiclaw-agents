@@ -1,62 +1,117 @@
-# MultiClaw Agents
+# Capped Trader — MultiClaw agent template for Pinata
 
-Pinata-hosted [OpenClaw](https://agents.pinata.cloud/) agent templates that
-operate **MultiClaw vaults** on Base. Each agent's on-chain authority is bounded
-by a Safe [Zodiac](https://www.zodiac.wiki/) module — **not** by its system
-prompt. So an agent can be given real on-chain power without being able to exceed
-its limits, regardless of prompt injection or model error.
+A Pinata-hosted OpenClaw agent that operates a **MultiClaw vault** on Base. Its
+spending is bounded **on-chain**: it cannot exceed its daily USD cap or send to a
+non-whitelisted recipient, regardless of prompt injection or model error. The
+guardrails are a Safe Zodiac module — not a system prompt.
 
-## One primitive, many bounded roles
-
-Every template here is built on the **same** skill — `multiclaw-vault` — which
-talks to a MultiClaw vault within its on-chain limits (read budget/status/history,
-check the recipient whitelist, execute capped transfers). The templates differ
-only in **persona** (`SOUL.md`) and **on-chain configuration** (roles, caps,
-whitelist). Same building block, different bounded job.
-
-## Templates
-
-| Template                                                          | Category               | What it does                                                   | Worst case if compromised  |
-| ----------------------------------------------------------------- | ---------------------- | -------------------------------------------------------------- | -------------------------- |
-| [Capped Trader](openclaw/actions-and-transactions/capped-trader/) | Actions & Transactions | Trades within a per-window USD spending cap                    | Spends up to the cap       |
-| [Vault Guardian](openclaw/monitoring-and-alerts/vault-guardian/)  | Monitoring & Alerts    | Watches positions; withdraws to the owner on a credible threat | Returns funds to the owner |
-
-## The shared skill
-
-`multiclaw-vault` lives in each template's `workspace/skills/multiclaw-vault/`
-and is **byte-identical** across templates — so `pinata agents skills create`
-pins it to the **same IPFS CID**. Pin it once (from either template) and
-reference that one CID in every manifest's `skills[0].cid`. It wraps
-[`@multiclaw/core`](https://www.npmjs.com/package/@multiclaw/core) (on npm), which
-resolves via the template's `scripts.build` (`npm install`).
-
-> Keep the copies in sync. If you change the skill, update it in every template
-> so they continue to pin to one CID.
+This scaffold targets **Base mainnet** by default. To rehearse
+on testnet first, set `MULTICLAW_CHAIN=baseSepolia` and point `VAULT_MODULE_ADDRESS`
+/ `SUBGRAPH_URL` at a Base Sepolia vault and subgraph.
 
 ## Layout
 
-Mirrors Pinata's [agent-templates](https://github.com/PinataCloud/agent-templates)
-convention — `openclaw/<category>/<template>/`, each template self-contained with
-its own `manifest.json`, `SOUL.md`, `BOOTSTRAP.md`, and `workspace/`:
-
 ```
-openclaw/
-├── actions-and-transactions/
-│   └── capped-trader/
-└── monitoring-and-alerts/
-    └── vault-guardian/
+capped-trader/
+├── manifest.json            # Pinata template spec (agent, model, secrets, skills, tasks)
+├── README.md                # this file — marketplace description
+└── workspace/
+    ├── SOUL.md              # agent persona / prime directive
+    ├── BOOTSTRAP.md         # first-run checklist
+    └── skills/
+        └── multiclaw-vault/ # the skill: reads, capped transfers, protocol calls
+            ├── SKILL.md
+            ├── .env.example
+            ├── package.json
+            ├── tsconfig.json
+            └── src/{client,index,subgraph,protocols}.ts
 ```
 
-## Using a template
+## Prerequisites
+
+1. **A deployed MultiClaw vault on Base mainnet.** Use the AgentVaultFactory
+   (`0x389623997Bc006dA3BdBbE18d7Be04dACF4f09Ff`) with the agent's EOA as
+   `agentAddress`. Note the resulting `DeFiInteractorModule` address.
+   (Base Sepolia factory: `0xa4D6FdE6f8F6f873BB00d5059541B657468E6179`.)
+2. **`@multiclaw/core` published to npm.** The skill installs it as a normal
+   dependency (`^0.1.1`). See "SDK dependency" below.
+3. An ETH-funded agent key (gas) and the Safe funded with the token to trade.
+
+## SDK dependency
+
+The skill depends on [`@multiclaw/core`](https://www.npmjs.com/package/@multiclaw/core),
+which is **published to npm**. The agent runs in an isolated container and the
+skill folder is pinned to public IPFS, so the dependency resolves from the public
+registry via `npm install` in `scripts.build` (see `manifest.json`) — no extra
+steps. The SDK source lives in the [MultiClaw repo](https://github.com/xaviermiel/MultiClaw)
+(`sdk/packages/core`).
+
+## Deploy & test on Base mainnet
 
 ```bash
-cd openclaw/<category>/<template>
-pinata agents skills create workspace/skills/multiclaw-vault   # → CID
-#   paste the CID into manifest.json skills[0].cid (same CID across templates)
+# 1. install the Pinata CLI and authenticate (see docs.pinata.cloud/agents)
+# 2. publish the skill (pins to IPFS, returns a CID)
+pinata agents skills create workspace/skills/multiclaw-vault
+#    → paste the returned CID into manifest.json skills[0].cid
+
+# 3. validate the template structure
 pinata agents templates validate .
-pinata agents create --template <repo-url>
+
+# 4. deploy the agent from this repo
+pinata agents create --template <this-repo-url>
+#    set secrets when prompted: ANTHROPIC_API_KEY, AGENT_PRIVATE_KEY,
+#    VAULT_MODULE_ADDRESS, SUBGRAPH_URL (for history). MULTICLAW_CHAIN
+#    defaults to base; set it to baseSepolia only for a testnet rehearsal.
 ```
 
-Each template's `README.md` and `BOOTSTRAP.md` cover its secrets, vault setup, and
-smoke test. These target **Base mainnet** by default and move **real funds** —
-read the per-template notes before deploying.
+### Smoke test
+
+⚠️ For tests, use a tiny amount, or run the rehearsal on `baseSepolia` first.
+
+In the agent's chat or terminal:
+
+```
+npm run mc -- status      # agent listed? oraclelessMode true? not paused?
+npm run mc -- budget      # note cap + remaining (window-aware)
+npm run mc -- transfer <token> <whitelisted-recipient> <small-amount>   # confirms
+npm run mc -- transfer <token> <whitelisted-recipient> <over-cap-amount> # reverts
+```
+
+The over-cap transfer **reverting on-chain** is the demonstration: the guardrail
+holds even when the agent is told to break it.
+
+## Notes
+
+- The skill demonstrates guardrails via **capped/whitelisted transfers**. Adding
+  protocol swaps (Uniswap/Aave) means building target calldata and passing it to
+  `executeAsAgent(module, target, calldata, account)` — the SDK sends it; you
+  build it. Left as a follow-up.
+- History reads are **subgraph-backed** (`SUBGRAPH_URL`), not `eth_getLogs` — this
+  avoids the public RPC's 2000-block `eth_getLogs` cap and scales better. See
+  "Subgraph strategy" below.
+
+## Subgraph strategy
+
+The `history` command (and the `daily-budget-report` task, which calls it) reads
+from a MultiClaw subgraph via `SUBGRAPH_URL`. `budget`, `status`, `acquired`, and
+`transfer` work without it — only history depends on it.
+
+A few things to know:
+
+- **It is not a secret.** The subgraph indexes on-chain events
+  (`AgentVaultCreated`, `ProtocolExecution`, `TransferExecuted`, …) that are
+  already public. The endpoint is read-only; exposing it leaks nothing private.
+- **Bring your own — don't share one endpoint across deployments.** The concern
+  is quota, not secrecy: a single shared endpoint means every deployment's
+  queries hit the same query cap. Each operator should point `SUBGRAPH_URL` at
+  their own subgraph so query volume (and cost) stays isolated.
+- **Where to get one.** Deploy the MultiClaw subgraph (`https://github.com/xaviermiel/MultiClaw/tree/main/subgraph`)
+  to The Graph Studio — its free tier (100k queries/mo) is ample for a single agent.
+  Studio hands you a query URL like `https://api.studio.thegraph.com/query/<id>/<name>/<version>`.
+  Migrate to The Graph's decentralized network only if query volume outgrows the free tier.
+- **Leave it empty if you don't need history.** With `SUBGRAPH_URL` unset, the
+  `history` command reports a clear "missing env var" error and everything else
+  keeps working.
+- Verify exact `manifest.json` field shapes with `pinata agents templates validate`
+  before submitting — some fields here are modeled from the docs and may need
+  tweaks against the live schema.
