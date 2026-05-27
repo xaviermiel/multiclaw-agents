@@ -31,20 +31,19 @@ Both templates use the **same** skill — pin it once with
 (`skills[0].cid`). The skill source is canonical in the Capped Trader template;
 this guardian repo references it by CID. One primitive, many roles.
 
-## Capabilities & one remaining follow-up
+## Capabilities
 
-1. **Read the recipient whitelist.** ✅ Done. The skill's `whitelist` command
+1. **Read the recipient whitelist.** ✅ The skill's `whitelist` command
    (SDK `getRecipientWhitelist`, `@multiclaw/core@0.1.2`) reports whether the
    whitelist is enforced, checks `OWNER_ADDRESS` membership, and — with
    `SUBGRAPH_URL` set — enumerates the full allowed set and computes
    `ownerIsSoleRecipient`. That flag is the guardian's startup safety check
    (BOOTSTRAP step 2).
-2. **Withdraw a protocol position.** ⏳ Follow-up. Sweeping loose tokens to the
-   owner works today via the skill's `transfer` command. Pulling a position _out
-   of_ a protocol (Aave/Morpho `withdraw`) needs the `executeAsAgent(module,
-target, calldata, account)` path — the same protocol-execution follow-up the
-   trader template flags for swaps. Build the protocol withdraw calldata, the SDK
-   sends it.
+2. **Withdraw a position.** ✅ Sweeping loose tokens to the owner uses the
+   `transfer` command. Pulling a position _out of_ a protocol (Aave/Morpho
+   `withdraw`, etc.) uses the `execute` command — `withdraw` to the Safe, then
+   `transfer` to the owner. The recipient whitelist still pins the final
+   destination to the owner, so neither path can move funds anywhere else.
 
 ## Prerequisites
 

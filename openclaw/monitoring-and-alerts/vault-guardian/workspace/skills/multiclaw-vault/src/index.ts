@@ -1,5 +1,6 @@
-import { formatUnits, isAddress, type Address } from "viem";
+import { formatUnits, isAddress, isHex, type Address, type Hex } from "viem";
 import { loadContext } from "./client.js";
+import { encodeCall } from "./protocols.js";
 import {
   fetchHistory,
   fetchAllowedRecipients,
@@ -130,6 +131,59 @@ async function acquired(args: string[]): Promise<void> {
   emit({ token, acquired: balance.toString() });
 }
 
+async function execute(rawArgs: string[]): Promise<void> {
+  // Optional `--value <wei>` for protocol calls that send native ETH.
+  let value = 0n;
+  let args = rawArgs;
+  const vi = args.indexOf("--value");
+  if (vi !== -1) {
+    const v = args[vi + 1];
+    if (!v) throw new Error("--value requires a wei amount");
+    value = BigInt(v);
+    args = [...args.slice(0, vi), ...args.slice(vi + 2)];
+  }
+
+  const [target, sigOrData, ...callArgs] = args;
+  if (!target || !isAddress(target)) {
+    throw new Error(
+      'Usage: execute <target> <0xcalldata | "funcSig(types)" args...> [--value <wei>]',
+    );
+  }
+  if (!sigOrData) {
+    throw new Error("Provide raw 0x calldata, or a function signature + args");
+  }
+
+  // Raw calldata (no extra args) passes through; otherwise treat the token as a
+  // function signature and ABI-encode it with the remaining args.
+  const data: Hex =
+    isHex(sigOrData) && callArgs.length === 0
+      ? sigOrData
+      : encodeCall(sigOrData, callArgs);
+
+  const { client, agent, module } = loadContext();
+  const { txHash, receipt } =
+    value > 0n
+      ? await client.executeAsAgentWithValue(
+          module,
+          target as Address,
+          data,
+          value,
+          agent,
+        )
+      : await client.executeAsAgent(module, target as Address, data, agent);
+
+  emit({
+    status: receipt.status,
+    txHash,
+    target,
+    value: value.toString(),
+    note:
+      receipt.status === "reverted"
+        ? "Execution reverted on-chain — target not whitelisted, unsupported selector, spending-cap breach, or the protocol call itself failed."
+        : "Execution confirmed within the on-chain guardrails.",
+  });
+}
+
 async function transfer(args: string[]): Promise<void> {
   const [token, recipient, amount] = args;
   if (!token || !recipient || !amount) {
@@ -173,9 +227,11 @@ async function main(): Promise<void> {
       return acquired(rest);
     case "transfer":
       return transfer(rest);
+    case "execute":
+      return execute(rest);
     default:
       console.log(
-        "Commands: budget | status | history | whitelist [recipient...] | acquired <token> | transfer <token> <recipient> <amount>",
+        'Commands: budget | status | history | whitelist [recipient...] | acquired <token> | transfer <token> <recipient> <amount> | execute <target> <0xcalldata | "funcSig" args...> [--value <wei>]',
       );
   }
 }
