@@ -1,62 +1,71 @@
-# MultiClaw Agents
+# Vault Guardian — MultiClaw agent template for Pinata
 
-Pinata-hosted [OpenClaw](https://agents.pinata.cloud/) agent templates that
-operate **MultiClaw vaults** on Base. Each agent's on-chain authority is bounded
-by a Safe [Zodiac](https://www.zodiac.wiki/) module — **not** by its system
-prompt. So an agent can be given real on-chain power without being able to exceed
-its limits, regardless of prompt injection or model error.
+A Pinata-hosted OpenClaw agent that **guards** a MultiClaw vault. It monitors the
+owner's positions and, on a credible threat (exploit, drain, emergency pause,
+abnormal oracle), pulls the funds **back to the owner — and nowhere else.**
 
-## One primitive, many bounded roles
+The "nowhere else" is enforced **on-chain**: the Safe's recipient whitelist is
+locked to the owner's address. So even if this agent is prompt-injected,
+jailbroken, or its key is stolen, the worst it can do is return your funds to
+**you**. That is the entire pitch: a low-trust agent you can safely hand on-chain
+authority, because its blast radius is "moves your money to you."
 
-Every template here is built on the **same** skill — `multiclaw-vault` — which
-talks to a MultiClaw vault within its on-chain limits (read budget/status/history,
-check the recipient whitelist, execute capped transfers). The templates differ
-only in **persona** (`SOUL.md`) and **on-chain configuration** (roles, caps,
-whitelist). Same building block, different bounded job.
+This is the **circuit-breaker** member of the MultiClaw agent family. It shares
+the same `multiclaw-vault` skill as the
+[Capped Trader](../../actions-and-transactions/capped-trader/) — same primitive,
+a different bounded role.
 
-## Templates
+## How it differs from the Capped Trader
 
-| Template                                                          | Category               | What it does                                                   | Worst case if compromised  |
-| ----------------------------------------------------------------- | ---------------------- | -------------------------------------------------------------- | -------------------------- |
-| [Capped Trader](openclaw/actions-and-transactions/capped-trader/) | Actions & Transactions | Trades within a per-window USD spending cap                    | Spends up to the cap       |
-| [Vault Guardian](openclaw/monitoring-and-alerts/vault-guardian/)  | Monitoring & Alerts    | Watches positions; withdraws to the owner on a credible threat | Returns funds to the owner |
+|                           | Capped Trader               | Vault Guardian                       |
+| ------------------------- | --------------------------- | ------------------------------------ |
+| Goal                      | Trade within a spending cap | Protect; withdraw to owner on threat |
+| On-chain bound            | Spending cap (USD/window)   | Recipient whitelist = owner only     |
+| Default behavior          | Act within budget           | **Observe; do nothing**              |
+| Worst case if compromised | Spends up to the cap        | Returns funds to the owner           |
 
-## The shared skill
+## Shared skill (`multiclaw-vault`)
 
-`multiclaw-vault` lives in each template's `workspace/skills/multiclaw-vault/`
-and is **byte-identical** across templates — so `pinata agents skills create`
-pins it to the **same IPFS CID**. Pin it once (from either template) and
-reference that one CID in every manifest's `skills[0].cid`. It wraps
-[`@multiclaw/core`](https://www.npmjs.com/package/@multiclaw/core) (on npm), which
-resolves via the template's `scripts.build` (`npm install`).
+Both templates use the **same** skill — pin it once with
+`pinata agents skills create`, then reference the **same CID** in both manifests
+(`skills[0].cid`). The skill source is canonical in the Capped Trader template;
+this guardian repo references it by CID. One primitive, many roles.
 
-> Keep the copies in sync. If you change the skill, update it in every template
-> so they continue to pin to one CID.
+## Capabilities
 
-## Layout
+1. **Read the recipient whitelist.** ✅ The skill's `whitelist` command
+   (SDK `getRecipientWhitelist`, `@multiclaw/core@0.1.2`) reports whether the
+   whitelist is enforced, checks `OWNER_ADDRESS` membership, and — with
+   `SUBGRAPH_URL` set — enumerates the full allowed set and computes
+   `ownerIsSoleRecipient`. That flag is the guardian's startup safety check
+   (BOOTSTRAP step 2).
+2. **Withdraw a position.** ✅ Sweeping loose tokens to the owner uses the
+   `transfer` command. Pulling a position _out of_ a protocol (Aave/Morpho
+   `withdraw`, etc.) uses the `execute` command — `withdraw` to the Safe, then
+   `transfer` to the owner. The recipient whitelist still pins the final
+   destination to the owner, so neither path can move funds anywhere else.
 
-Mirrors Pinata's [agent-templates](https://github.com/PinataCloud/agent-templates)
-convention — `openclaw/<category>/<template>/`, each template self-contained with
-its own `manifest.json`, `SOUL.md`, `BOOTSTRAP.md`, and `workspace/`:
+## Prerequisites
 
-```
-openclaw/
-├── actions-and-transactions/
-│   └── capped-trader/
-└── monitoring-and-alerts/
-    └── vault-guardian/
-```
+1. A MultiClaw vault on Base mainnet configured for guarding: agent holds the
+   transfer role, recipient whitelist **enabled**, `OWNER_ADDRESS` the **only**
+   allowed recipient. See `workspace/BOOTSTRAP.md` §0.
+2. `@multiclaw/core` on npm (`^0.1.2`, for the `whitelist` reader).
+3. An ETH-funded agent key (gas). The Safe holds the positions to protect.
 
-## Using a template
+## Deploy
 
 ```bash
-cd openclaw/<category>/<template>
-pinata agents skills create workspace/skills/multiclaw-vault   # → CID
-#   paste the CID into manifest.json skills[0].cid (same CID across templates)
+# pin the shared skill once (reuse the Capped Trader's skill source), get a CID
+pinata agents skills create <path-to>/multiclaw-vault
+#   → paste the SAME CID into this manifest.json skills[0].cid (and the trader's)
+
 pinata agents templates validate .
-pinata agents create --template <repo-url>
+pinata agents create --template <this-repo-url>
+#   set secrets: ANTHROPIC_API_KEY, AGENT_PRIVATE_KEY, VAULT_MODULE_ADDRESS,
+#   OWNER_ADDRESS, SUBGRAPH_URL (to enumerate the whitelist / history).
 ```
 
-Each template's `README.md` and `BOOTSTRAP.md` cover its secrets, vault setup, and
-smoke test. These target **Base mainnet** by default and move **real funds** —
-read the per-template notes before deploying.
+See the
+[Capped Trader README](../../actions-and-transactions/capped-trader/README.md)
+for the subgraph strategy and SDK-dependency notes — they apply identically here.
