@@ -49,7 +49,7 @@ this guardian repo references it by CID. One primitive, many roles.
 
 1. A MultiClaw vault on Base mainnet configured for guarding: agent holds the
    transfer role, recipient whitelist **enabled**, `OWNER_ADDRESS` the **only**
-   allowed recipient. See `BOOTSTRAP.md` §0.
+   allowed recipient. See `workspace/BOOTSTRAP.md` §0.
 2. `@multiclaw/core` on npm (`^0.1.2`, for the `whitelist` reader).
 3. An ETH-funded agent key (gas). The Safe holds the positions to protect.
 

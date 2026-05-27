@@ -13,17 +13,18 @@ on testnet first, set `MULTICLAW_CHAIN=baseSepolia` and point `VAULT_MODULE_ADDR
 
 ```
 capped-trader/
-├── manifest.json        # Pinata template spec (agent, model, secrets, skills, tasks, routes)
-├── SOUL.md              # agent persona / prime directive
-├── BOOTSTRAP.md         # first-run checklist
+├── manifest.json            # Pinata template spec (agent, model, secrets, skills, tasks)
+├── README.md                # this file — marketplace description
 └── workspace/
+    ├── SOUL.md              # agent persona / prime directive
+    ├── BOOTSTRAP.md         # first-run checklist
     └── skills/
-        └── multiclaw-vault/   # the skill: reads + capped transfers via @multiclaw/core
+        └── multiclaw-vault/ # the skill: reads, capped transfers, protocol calls
             ├── SKILL.md
             ├── .env.example
             ├── package.json
             ├── tsconfig.json
-            └── src/{client,index,subgraph}.ts
+            └── src/{client,index,subgraph,protocols}.ts
 ```
 
 ## Prerequisites

@@ -3,6 +3,7 @@
   "agent": {
     "name": "Vault Guardian",
     "emoji": "🛟",
+    "description": "A circuit-breaker agent for Base. It monitors the owner's DeFi positions and, on a credible threat (exploit, drain, emergency pause, abnormal oracle), withdraws them — but the Safe's recipient whitelist (MultiClaw) locks the destination to the owner's address. Even fully compromised or prompt-injected, the worst it can do is return your funds to you. Safe to hand an autonomous agent on-chain authority.",
     "vibe": "A sentinel for a MultiClaw vault. It watches, and its only power is to pull the owner's funds back to the owner — it can do nothing else, by on-chain rule."
   },
   "model": "anthropic/claude-haiku-4-5",
